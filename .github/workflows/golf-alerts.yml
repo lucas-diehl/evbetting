@@ -21,7 +21,7 @@ jobs:
           use-public-rspm: true
       - name: Install R packages
         shell: Rscript {0}
-        run: install.packages(c("data.table", "httr2"))
+        run: install.packages(c("data.table", "httr2", "jsonlite"))
       - name: Run scanner
         env:
           DATAGOLF_API_KEY: ${{ secrets.DATAGOLF_API_KEY }}
