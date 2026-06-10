@@ -1,0 +1,44 @@
+# GitHub Actions — free always-on scanner (no server to keep on).
+# Put this at .github/workflows/golf-alerts.yml in a repo that contains
+# alert_cloud.R at the repo root. Add repo secret DATAGOLF_API_KEY.
+#
+# IMPORTANT: use a PUBLIC repo — Actions minutes are unlimited on public repos.
+# A private repo's free tier (2000 min/mo) is not enough for a 20-min cadence.
+# Scheduled runs can be delayed 5-20 min under GitHub load; fine for CLV tracking.
+
+name: golf-ev-alerts
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golf-alerts
+  cancel-in-progress: false   # never run two at once (avoids ledger push conflicts)
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: cran::data.table, cran::httr2
+      - name: Run scanner
+        env:
+          DATAGOLF_API_KEY: ${{ secrets.DATAGOLF_API_KEY }}
+        run: Rscript alert_cloud.R
+      - name: Persist ledger
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "actions@github.com"
+          git add -A golf_picks || true
+          git commit -m "ledger $(date -u +%FT%TZ)" || { echo "no changes"; exit 0; }
+          git pull --rebase --autostash origin ${{ github.ref_name }} || true
+          git push || echo "push skipped"
